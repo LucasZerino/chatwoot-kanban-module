@@ -46,40 +46,59 @@ fi
 
 echo "✓ Bundle baixado ($(echo -n "$BUNDLE_CONTENT" | wc -c) caracteres)"
 
-# Criar arquivo temporário de instalação
+# Salvar bundle em arquivo temporário
 echo ""
 echo "🔧 Preparando instalação..."
 
-cat > /tmp/kanban_install.rb << 'EOF'
+BUNDLE_FILE="/tmp/kanban_bundle_$(date +%s).txt"
+echo "$BUNDLE_CONTENT" > "$BUNDLE_FILE"
+echo "✓ Bundle salvo em: $BUNDLE_FILE"
+
+# Copiar bundle para dentro do container
+echo "📤 Copiando bundle para container..."
+CONTAINER_ID=$($DOCKER_COMPOSE_CMD ps -q $CONTAINER_NAME)
+docker cp "$BUNDLE_FILE" "$CONTAINER_ID:/tmp/kanban_bundle.txt"
+echo "✓ Bundle copiado para container"
+
+# Criar script de instalação dentro do container
+echo "🔧 Criando script de instalação..."
+
+$DOCKER_COMPOSE_CMD exec -T $CONTAINER_NAME bash -c 'cat > /tmp/kanban_install.rb << '\''SCRIPT'\''
+# Ler bundle do arquivo
+bundle_content = File.read("/tmp/kanban_bundle.txt")
+
 # Criar ou atualizar config
-config = InstallationConfig.find_or_initialize_by(name: 'MODULE_KANBAN_BUNDLE')
-config.value = ENV['BUNDLE_CONTENT']
+config = InstallationConfig.find_or_initialize_by(name: "MODULE_KANBAN_BUNDLE")
+config.value = bundle_content
 config.locked = false
 config.save!
 
 Rails.logger.info "✓ Config salvo no banco"
 
 # Decodificar e executar bundle
-require 'base64'
-require 'zlib'
-require 'json'
+require "base64"
+require "zlib"
+require "json"
 
 Rails.logger.info "📦 Decodificando bundle..."
 decoded = Base64.decode64(config.value)
 decompressed = Zlib::Inflate.inflate(decoded)
 bundle = JSON.parse(decompressed)
 
-Rails.logger.info "✓ Bundle: #{bundle['name']} v#{bundle['version']}"
-Rails.logger.info "✓ Arquivos: #{bundle['files']&.keys&.length || 0}"
+Rails.logger.info "✓ Bundle: #{bundle['\''name'\'']} v#{bundle['\''version'\'']}"
+Rails.logger.info "✓ Arquivos: #{bundle['\''files'\'']&.keys&.length || 0}"
 
-if bundle['install_script']
+if bundle['\''install_script'\'']
   Rails.logger.info "▶️  Executando instalação..."
-  eval(bundle['install_script'])
+  eval(bundle['\''install_script'\''])
 else
   Rails.logger.error "❌ Install script não encontrado!"
   exit 1
 end
-EOF
+
+# Limpar bundle temporário
+File.delete("/tmp/kanban_bundle.txt") rescue nil
+SCRIPT'
 
 echo "✓ Script de instalação criado"
 
@@ -88,7 +107,7 @@ echo ""
 echo "⚙️  Instalando módulo..."
 echo ""
 
-BUNDLE_CONTENT="$BUNDLE_CONTENT" $DOCKER_COMPOSE_CMD exec -T $CONTAINER_NAME bundle exec rails runner - < /tmp/kanban_install.rb
+$DOCKER_COMPOSE_CMD exec -T $CONTAINER_NAME bundle exec rails runner /tmp/kanban_install.rb
 
 INSTALL_EXIT=$?
 
