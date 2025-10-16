@@ -32,8 +32,8 @@ if [[ "$SCRIPT_URL" == http* ]]; then
     BASE_URL=$(dirname "$SCRIPT_URL")
     BUNDLE_URL="$BASE_URL/kanban_module_bundle.txt"
 else
-    # Fallback: URL fixa (substitua com seu repositório)
-    BUNDLE_URL="https://raw.githubusercontent.com/SEU-USER/SEU-REPO/main/kanban_module_bundle.txt"
+    # Fallback: URL fixa do repositório LucasZerino/chatwoot-kanban-module
+    BUNDLE_URL="https://raw.githubusercontent.com/LucasZerino/chatwoot-kanban-module/main/bundle.txt"
 fi
 
 echo "  URL: $BUNDLE_URL"
